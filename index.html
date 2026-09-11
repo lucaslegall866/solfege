@@ -13,8 +13,15 @@
 
   <header>
     <div class="logo">Solfège Lab</div>
-    <div class="header-right">
-      <!-- Sélecteur d'exercice compact dans le header -->
+    
+    <!-- Contrôles rapides dans le Header : Métronome + Choix d'exercice -->
+    <div class="header-controls">
+      <div class="metronome-widget">
+        <button id="metro-toggle-btn" class="metro-btn">▶</button>
+        <input type="number" id="metro-bpm" value="90" min="40" max="240" step="5" title="BPM">
+        <span class="metro-label">BPM</span>
+      </div>
+
       <select id="exercise-mode" class="compact-select">
         <option value="note-reading">Lecture de Notes</option>
         <option value="rhythm-reading" disabled>Lecture Rythmique (Bientôt)</option>
@@ -24,7 +31,7 @@
   </header>
 
   <main class="container">
-    <!-- Barre de paramètres compacte -->
+    <!-- Barre de paramètres compacte (sans le tempo) -->
     <section class="card settings-card">
       <div class="form-row">
         <div class="form-group">
@@ -58,20 +65,15 @@
           <select id="chords-mode">
             <option value="single">Notes simples</option>
             <option value="mixed" selected>Mélange (Notes & Accords)</option>
-            <option value="chords">Accords seuls (2 à 4 sons)</option>
+            <option value="chords">Accords seuls</option>
           </select>
-        </div>
-
-        <div class="form-group">
-          <label for="tempo-input">Tempo (BPM)</label>
-          <input type="number" id="tempo-input" value="0" min="0" max="240" step="5">
         </div>
       </div>
     </section>
 
     <!-- Affichage score & progression -->
     <div class="hud">
-      <div class="hud-item">Note : <span id="progress-indicator">0 / 0</span></div>
+      <div class="hud-item">Note attendue : <span id="target-note-subtext" style="color:var(--accent); font-weight:bold;">1/1</span></div>
       <div class="hud-item">
         Précision : <span id="score-indicator">100%</span>
         <button id="reset-score-btn" class="icon-btn" title="Réinitialiser le score">↺ Reset</button>

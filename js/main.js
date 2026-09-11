@@ -7,13 +7,17 @@ const renderer = new ScoreRenderer('score-container');
 const exercise = new NoteReadingExercise();
 
 // DOM
-const progressEl = document.getElementById('progress-indicator');
+const targetSubtextEl = document.getElementById('target-note-subtext');
 const scoreEl = document.getElementById('score-indicator');
 const keyboardEl = document.getElementById('keyboard');
 const scoreWrapper = document.getElementById('score-wrapper');
 const resetBtn = document.getElementById('reset-score-btn');
 
-// Initialisation des 7 touches
+// Métronome DOM
+const metroToggleBtn = document.getElementById('metro-toggle-btn');
+const metroBpmInput = document.getElementById('metro-bpm');
+
+// Clavier de 7 touches
 NOTE_NAMES_FR.forEach((nom) => {
   const btn = document.createElement('button');
   btn.className = 'key-btn';
@@ -22,13 +26,11 @@ NOTE_NAMES_FR.forEach((nom) => {
   keyboardEl.appendChild(btn);
 });
 
-// Écoute clavier AZERTY / QWERTY
+// Écoute clavier physique
 window.addEventListener('keydown', (e) => {
   const key = e.key.toLowerCase();
   const idx = NOTE_NAMES_EN.indexOf(key);
-  if (idx !== -1) {
-    submitAnswer(NOTE_NAMES_FR[idx]);
-  }
+  if (idx !== -1) submitAnswer(NOTE_NAMES_FR[idx]);
 });
 
 function getParams() {
@@ -36,18 +38,16 @@ function getParams() {
     clef: document.getElementById('clef-select').value,
     measures: parseInt(document.getElementById('measures-count').value),
     timeSignature: document.getElementById('time-signature').value,
-    chordsMode: document.getElementById('chords-mode').value,
-    tempo: parseInt(document.getElementById('tempo-input').value)
+    chordsMode: document.getElementById('chords-mode').value
   };
 }
 
-// Génération automatique
 function startNewSession() {
   const params = getParams();
   const measuresData = exercise.generate(params);
 
   renderer.render(measuresData, params.clef, params.timeSignature);
-  renderer.highlightNote(exercise.currentIndex, exercise.noteMeasureMap);
+  renderer.highlightElement(exercise.currentFigureIdx, exercise.noteMeasureMap);
   updateHUD();
 }
 
@@ -55,7 +55,8 @@ async function submitAnswer(noteName) {
   const result = exercise.validate(noteName);
 
   if (result.success) {
-    audio.playNotes(result.keys);
+    // Joue le son de la note validée
+    audio.playNote(result.key);
 
     if (exercise.isFinished()) {
       updateHUD();
@@ -63,7 +64,9 @@ async function submitAnswer(noteName) {
       return;
     }
 
-    renderer.highlightNote(exercise.currentIndex, exercise.noteMeasureMap);
+    if (result.completedFigure) {
+      renderer.highlightElement(exercise.currentFigureIdx, exercise.noteMeasureMap);
+    }
   } else {
     scoreWrapper.classList.add('flash-error');
     setTimeout(() => scoreWrapper.classList.remove('flash-error'), 300);
@@ -73,28 +76,44 @@ async function submitAnswer(noteName) {
 }
 
 function updateHUD() {
-  progressEl.textContent = `${exercise.currentIndex} / ${exercise.sequence.length}`;
+  const currentFig = exercise.figures[exercise.currentFigureIdx];
+  if (currentFig) {
+    const total = currentFig.noteNames.length;
+    const current = exercise.currentChordNoteIdx + 1;
+    targetSubtextEl.textContent = total > 1 ? `Accord : note ${current}/${total} (du bas)` : `Note seule`;
+  }
   scoreEl.textContent = `${exercise.getScore()}%`;
 }
 
-// Réinitialisation du score
+// Reset Score
 resetBtn.onclick = () => {
   exercise.resetStats();
   updateHUD();
 };
 
-// Écoute automatique de chaque changement de paramètre
-['clef-select', 'measures-count', 'time-signature', 'chords-mode', 'tempo-input'].forEach(id => {
-  document.getElementById(id).addEventListener('change', () => {
-    startNewSession();
-  });
+// Gestion Métronome Indépendant
+metroToggleBtn.onclick = async () => {
+  const bpm = parseInt(metroBpmInput.value) || 90;
+  const isRunning = await audio.toggleMetronome(bpm);
+  metroToggleBtn.textContent = isRunning ? "■" : "▶";
+  metroToggleBtn.classList.toggle('active', isRunning);
+};
+
+metroBpmInput.addEventListener('change', () => {
+  const bpm = parseInt(metroBpmInput.value) || 90;
+  audio.setMetronomeBpm(bpm);
+});
+
+// Écoute automatique des paramètres de génération (sans le métronome)
+['clef-select', 'measures-count', 'time-signature', 'chords-mode'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => startNewSession());
 });
 
 window.addEventListener('resize', () => {
-  if (exercise.sequence.length > 0) {
+  if (exercise.figures.length > 0) {
     const params = getParams();
     renderer.render(exercise.generate(params), params.clef, params.timeSignature);
-    renderer.highlightNote(exercise.currentIndex, exercise.noteMeasureMap);
+    renderer.highlightElement(exercise.currentFigureIdx, exercise.noteMeasureMap);
   }
 });
 
