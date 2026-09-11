@@ -1,11 +1,95 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Solfege</title>
-    </head>
-    <body>
-        <h1>Welcome to Solfege</h1>
-    </body>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solfège Lab</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Bibliothèques externes -->
+  <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.4/build/cjs/vexflow.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+</head>
+<body>
+
+  <header>
+    <h2>Solfège Lab</h2>
+    <div id="exercise-title" class="tag">Lecture de Notes</div>
+  </header>
+
+  <main class="container">
+    <!-- Sélecteur d'exercices (évolutif) -->
+    <section class="card">
+      <label>Exercices</label>
+      <div class="menu-grid">
+        <button class="btn active" data-exercise="note-reading">Lecture de Notes</button>
+        <button class="btn" disabled>Lecture Rythmique (Bientôt)</button>
+        <button class="btn" disabled>Notes & Rythmes (Bientôt)</button>
+      </div>
+    </section>
+
+    <!-- Configuration de l'exercice -->
+    <section class="card">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="clef-select">Clé(s)</label>
+          <select id="clef-select">
+            <option value="treble">Clé de Sol</option>
+            <option value="bass">Clé de Fa</option>
+            <option value="both">Système (Sol + Fa)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="measures-count">Mesures</label>
+          <select id="measures-count">
+            <option value="1">1 mesure</option>
+            <option value="2" selected>2 mesures</option>
+            <option value="4">4 mesures</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="time-signature">Chiffrage</label>
+          <select id="time-signature">
+            <option value="4/4">4/4</option>
+            <option value="3/4">3/4</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="chords-mode">Polyphonie</label>
+          <select id="chords-mode">
+            <option value="single">Notes simples</option>
+            <option value="chords">Accords</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="tempo-input">Tempo (BPM)</label>
+          <input type="number" id="tempo-input" value="0" min="0" max="240" step="5">
+        </div>
+      </div>
+      <button id="start-btn" class="btn primary-btn">Générer la partition</button>
+    </section>
+
+    <!-- Affichage score & progression -->
+    <div class="hud">
+      <div>Progression : <span id="progress-indicator">0 / 0</span></div>
+      <div>Précision : <span id="score-indicator">100%</span></div>
+    </div>
+
+    <!-- Zone partition VexFlow -->
+    <div id="score-wrapper">
+      <div id="score-container"></div>
+    </div>
+
+    <!-- Interface d'interaction (Boutons réponses) -->
+    <section class="card">
+      <div class="keyboard-helper">Sélectionnez la note attendue (ou clavier physique)</div>
+      <div class="keyboard" id="keyboard"></div>
+    </section>
+  </main>
+
+  <script type="module" src="js/main.js"></script>
+</body>
 </html>
