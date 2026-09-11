@@ -1,22 +1,19 @@
 export class ScoreRenderer {
   constructor(containerId) {
     this.container = document.getElementById(containerId);
-    this.measurePositions = []; // Coordonnées X de chaque mesure
+    this.measurePositions = [];
   }
 
-  // Calcule la largeur idéale d'une mesure selon l'écran disponible
-  getVisibleMeasuresConfig() {
+  getMeasureWidth(numMeasures) {
     const isPortrait = window.matchMedia("(orientation: portrait)").matches;
-    const width = window.innerWidth;
+    const clientWidth = this.container.clientWidth || window.innerWidth - 40;
 
-    if (width >= 1024) {
-      return { visibleCount: 4, widthPerMeasure: Math.floor((this.container.clientWidth - 40) / 4) };
-    } else if (width >= 768 || (!isPortrait && width < 768)) {
-      // Ordinateur portable ou Mobile Paysage -> 2 à 3 mesures
-      return { visibleCount: 2.5, widthPerMeasure: Math.floor((this.container.clientWidth - 20) / 2.5) };
+    if (window.innerWidth >= 1024) {
+      return Math.max(260, Math.floor((clientWidth - 40) / Math.min(numMeasures, 4)));
+    } else if (window.innerWidth >= 768 || (!isPortrait && window.innerWidth < 768)) {
+      return Math.max(240, Math.floor((clientWidth - 20) / 2.5));
     } else {
-      // Mobile Portrait -> ~1.2 mesure (pour voir le début de la suivante sans déborder)
-      return { visibleCount: 1.2, widthPerMeasure: Math.max(200, Math.floor(this.container.clientWidth - 40)) };
+      return Math.max(220, Math.floor(clientWidth - 30));
     }
   }
 
@@ -25,10 +22,11 @@ export class ScoreRenderer {
     this.measurePositions = [];
 
     const { Renderer, Stave } = Vex.Flow;
-    const { widthPerMeasure } = this.getVisibleMeasuresConfig();
-
+    const widthPerMeasure = this.getMeasureWidth(measuresData.length);
     const totalWidth = measuresData.length * widthPerMeasure + 60;
-    const height = clefMode === 'both' ? 250 : 155;
+    
+    // Hauteur accrue pour donner de la place aux notes aiguës/graves avec lignes supplémentaires
+    const height = clefMode === 'both' ? 300 : 190;
 
     const renderer = new Renderer(this.container, Renderer.Backends.SVG);
     renderer.resize(totalWidth, height);
@@ -40,8 +38,8 @@ export class ScoreRenderer {
       this.measurePositions.push(xOffset);
 
       if (clefMode === 'both') {
-        const staveTreble = new Stave(xOffset, 15, widthPerMeasure);
-        const staveBass = new Stave(xOffset, 115, widthPerMeasure);
+        const staveTreble = new Stave(xOffset, 25, widthPerMeasure);
+        const staveBass = new Stave(xOffset, 155, widthPerMeasure);
 
         if (idx === 0) {
           staveTreble.addClef('treble').addTimeSignature(timeSig);
@@ -54,7 +52,7 @@ export class ScoreRenderer {
         this._drawVoice(context, staveTreble, measure.treble, 'treble', timeSig);
         this._drawVoice(context, staveBass, measure.bass, 'bass', timeSig);
       } else {
-        const stave = new Stave(xOffset, 15, widthPerMeasure);
+        const stave = new Stave(xOffset, 35, widthPerMeasure);
         if (idx === 0) {
           stave.addClef(clefMode).addTimeSignature(timeSig);
         }
@@ -65,42 +63,49 @@ export class ScoreRenderer {
       xOffset += widthPerMeasure;
     });
 
-    // Remet le défilement au départ
     this.container.scrollLeft = 0;
   }
 
   _drawVoice(context, stave, notes, clef, timeSig) {
-    const { StaveNote, Voice, Formatter } = Vex.Flow;
+    if (!notes || notes.length === 0) return;
+
+    const { StaveNote, Dot, Voice, Formatter } = Vex.Flow;
     const beats = parseInt(timeSig.split('/')[0]);
 
-    const staveNotes = notes.map(n => new StaveNote({
-      keys: n.keys,
-      duration: n.duration,
-      clef: clef
-    }));
+    const staveNotes = notes.map(n => {
+      const isDotted = n.duration.includes('d');
+      const cleanDuration = n.duration.replace('d', '');
+
+      const sn = new StaveNote({
+        keys: n.keys,
+        duration: cleanDuration,
+        clef: clef
+      });
+
+      if (isDotted) {
+        Dot.buildAndAttach([sn], { all: true });
+      }
+      return sn;
+    });
 
     const voice = new Voice({ num_beats: beats, beat_value: 4 }).setMode(Voice.Mode.SOFT);
     voice.addTickables(staveNotes);
 
-    // Marge pour la barre de fin de mesure
-    new Formatter().joinVoices([voice]).format([voice], stave.getWidth() - 30);
+    new Formatter().joinVoices([voice]).formatToStave([voice], stave);
     voice.draw(context, stave);
   }
 
-  highlightNote(index, beatsPerMeasure) {
+  highlightNote(overallNoteIndex, noteMeasureMap) {
     const svgNotes = this.container.querySelectorAll('.vf-stavenote');
     svgNotes.forEach((noteEl, i) => {
       noteEl.querySelectorAll('path').forEach(p => {
-        p.style.fill = (i === index) ? '#0284c7' : '#000000';
+        p.style.fill = (i === overallNoteIndex) ? '#0284c7' : '#000000';
       });
     });
 
-    // Défilement automatique vers la mesure active
-    if (beatsPerMeasure) {
-      const currentMeasureIdx = Math.floor(index / beatsPerMeasure);
-      const targetX = this.measurePositions[currentMeasureIdx] || 0;
-
-      // Décale pour laisser une petite marge à gauche
+    if (noteMeasureMap && noteMeasureMap[overallNoteIndex] !== undefined) {
+      const measureIdx = noteMeasureMap[overallNoteIndex];
+      const targetX = this.measurePositions[measureIdx] || 0;
       this.container.scrollTo({
         left: Math.max(0, targetX - 20),
         behavior: 'smooth'

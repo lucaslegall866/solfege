@@ -12,23 +12,20 @@
 <body>
 
   <header>
-    <h2>Solfège Lab</h2>
-    <div id="exercise-title" class="tag">Lecture de Notes</div>
+    <div class="logo">Solfège Lab</div>
+    <div class="header-right">
+      <!-- Sélecteur d'exercice compact dans le header -->
+      <select id="exercise-mode" class="compact-select">
+        <option value="note-reading">Lecture de Notes</option>
+        <option value="rhythm-reading" disabled>Lecture Rythmique (Bientôt)</option>
+        <option value="notes-rhythm" disabled>Notes & Rythmes (Bientôt)</option>
+      </select>
+    </div>
   </header>
 
   <main class="container">
-    <!-- Sélecteur d'exercices (évolutif) -->
-    <section class="card">
-      <label>Exercices</label>
-      <div class="menu-grid">
-        <button class="btn active" data-exercise="note-reading">Lecture de Notes</button>
-        <button class="btn" disabled>Lecture Rythmique (Bientôt)</button>
-        <button class="btn" disabled>Notes & Rythmes (Bientôt)</button>
-      </div>
-    </section>
-
-    <!-- Configuration de l'exercice -->
-    <section class="card">
+    <!-- Barre de paramètres compacte -->
+    <section class="card settings-card">
       <div class="form-row">
         <div class="form-group">
           <label for="clef-select">Clé(s)</label>
@@ -57,10 +54,11 @@
         </div>
 
         <div class="form-group">
-          <label for="chords-mode">Polyphonie</label>
+          <label for="chords-mode">Contenu</label>
           <select id="chords-mode">
             <option value="single">Notes simples</option>
-            <option value="chords">Accords</option>
+            <option value="mixed" selected>Mélange (Notes & Accords)</option>
+            <option value="chords">Accords seuls (2 à 4 sons)</option>
           </select>
         </div>
 
@@ -69,13 +67,15 @@
           <input type="number" id="tempo-input" value="0" min="0" max="240" step="5">
         </div>
       </div>
-      <button id="start-btn" class="btn primary-btn">Générer la partition</button>
     </section>
 
     <!-- Affichage score & progression -->
     <div class="hud">
-      <div>Progression : <span id="progress-indicator">0 / 0</span></div>
-      <div>Précision : <span id="score-indicator">100%</span></div>
+      <div class="hud-item">Note : <span id="progress-indicator">0 / 0</span></div>
+      <div class="hud-item">
+        Précision : <span id="score-indicator">100%</span>
+        <button id="reset-score-btn" class="icon-btn" title="Réinitialiser le score">↺ Reset</button>
+      </div>
     </div>
 
     <!-- Zone partition VexFlow -->
@@ -83,9 +83,8 @@
       <div id="score-container"></div>
     </div>
 
-    <!-- Interface d'interaction (Boutons réponses) -->
-    <section class="card">
-      <div class="keyboard-helper">Sélectionnez la note attendue (ou clavier physique)</div>
+    <!-- Clavier de saisie -->
+    <section class="keyboard-container">
       <div class="keyboard" id="keyboard"></div>
     </section>
   </main>
