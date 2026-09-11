@@ -25,7 +25,7 @@ function getPitchValue(keyStr) {
 export class NoteReadingExercise extends BaseExercise {
   constructor() {
     super();
-    this.targets = []; // Liste ordonnée chronologiquement de chaque note cible individuelle
+    this.targets = [];
     this.currentTargetIndex = 0;
   }
 
@@ -38,10 +38,9 @@ export class NoteReadingExercise extends BaseExercise {
 
     for (let m = 0; m < measures; m++) {
       const measureGroup = { treble: [], bass: [] };
-      const timeEvents = []; // Collecte des événements avec leur timestamp dans la mesure
+      const timeEvents = [];
 
       if (clef === 'both') {
-        // Génération de motifs complets indépendants pour chaque portée
         const treblePattern = this._getFullMeasurePattern(beatsPerMeasure);
         const bassPattern = this._getFullMeasurePattern(beatsPerMeasure);
 
@@ -71,18 +70,14 @@ export class NoteReadingExercise extends BaseExercise {
         });
       }
 
-      // TRI TEMPOREL STRICT :
-      // 1. D'abord par le temps dans la mesure (temps 0, puis temps 1, etc.)
-      // 2. À temps égal : priorité à la clé de Fa avant la clé de Sol
+      // Tri temporel : temps dans la mesure puis Fa avant Sol
       timeEvents.sort((a, b) => {
-        if (Math.abs(a.time - b.time) > 0.001) {
-          return a.time - b.time;
-        }
+        if (Math.abs(a.time - b.time) > 0.001) return a.time - b.time;
         if (a.clef === b.clef) return 0;
         return a.clef === 'bass' ? -1 : 1;
       });
 
-      // Aplatissement en cibles individuelles (du bas vers le haut au sein de chaque accord)
+      // Aplatissement chronologique
       timeEvents.forEach(evt => {
         const { elem } = evt;
         elem.keys.forEach((key, headIdx) => {
@@ -91,7 +86,7 @@ export class NoteReadingExercise extends BaseExercise {
             clef: elem.clef,
             key: key,
             expectedNote: elem.noteNames[headIdx],
-            staveNoteRef: elem.staveNoteRef,
+            elemRef: elem,
             headIndex: headIdx
           });
         });
@@ -103,7 +98,6 @@ export class NoteReadingExercise extends BaseExercise {
     return measuresData;
   }
 
-  // Motifs rythmiques garantissant une mesure 100% pleine sans silences
   _getFullMeasurePattern(beats) {
     if (beats === 4) {
       const patterns = [
@@ -115,7 +109,7 @@ export class NoteReadingExercise extends BaseExercise {
         [{ dur: '8', val: 0.5 }, { dur: '8', val: 0.5 }, { dur: 'q', val: 1 }, { dur: 'h', val: 2 }]
       ];
       return patterns[Math.floor(Math.random() * patterns.length)];
-    } else { // 3/4
+    } else {
       const patterns = [
         [{ dur: 'hd', val: 3 }],
         [{ dur: 'h', val: 2 }, { dur: 'q', val: 1 }],
@@ -132,7 +126,7 @@ export class NoteReadingExercise extends BaseExercise {
 
     let rawKeys = [];
     if (isChord) {
-      const chordSize = Math.floor(Math.random() * 3) + 2; // 2, 3 ou 4 sons
+      const chordSize = Math.floor(Math.random() * 3) + 2;
       const startIdx = Math.floor(Math.random() * (pool.length - 7));
       rawKeys.push(pool[startIdx]);
 
@@ -145,7 +139,6 @@ export class NoteReadingExercise extends BaseExercise {
       rawKeys.push(pool[Math.floor(Math.random() * pool.length)]);
     }
 
-    // Tri ascendant strict des hauteurs
     rawKeys.sort((a, b) => getPitchValue(a) - getPitchValue(b));
 
     const noteNames = rawKeys.map(k => {
@@ -153,16 +146,15 @@ export class NoteReadingExercise extends BaseExercise {
       return NOTE_NAMES_FR[NOTE_NAMES_EN.indexOf(letter)];
     });
 
-    const elemRef = {
+    return {
       keys: rawKeys,
       duration: durObj.dur,
       clef: clef,
       noteNames: noteNames,
       measureIndex: measureIdx,
-      staveNoteRef: null // Rempli lors du rendu VexFlow
+      staveNoteRef: null,
+      figureId: null
     };
-
-    return elemRef;
   }
 
   validate(noteName) {
@@ -186,5 +178,15 @@ export class NoteReadingExercise extends BaseExercise {
 
   isFinished() {
     return this.currentTargetIndex >= this.targets.length;
+  }
+
+  resetStats() {
+    this.attempts = 0;
+    this.mistakes = 0;
+  }
+
+  getScore() {
+    if (this.attempts === 0) return 100;
+    return Math.max(0, Math.round(((this.attempts - this.mistakes) / this.attempts) * 100));
   }
 }

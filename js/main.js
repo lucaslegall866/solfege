@@ -42,12 +42,23 @@ function getParams() {
   };
 }
 
+function getCurrentTargetPayload() {
+  const target = exercise.targets[exercise.currentTargetIndex];
+  if (!target) return null;
+  return {
+    figureId: target.elemRef ? target.elemRef.figureId : null,
+    staveNoteRef: target.elemRef ? target.elemRef.staveNoteRef : null,
+    headIndex: target.headIndex,
+    measureIndex: target.measureIndex
+  };
+}
+
 function startNewSession() {
   const params = getParams();
   const measuresData = exercise.generate(params);
 
   renderer.render(measuresData, params.clef, params.timeSignature);
-  renderer.highlightTargetNote(exercise.targets[exercise.currentTargetIndex]);
+  renderer.highlightTargetNote(getCurrentTargetPayload());
   updateHUD();
 }
 
@@ -63,7 +74,7 @@ async function submitAnswer(noteName) {
       return;
     }
 
-    renderer.highlightTargetNote(exercise.targets[exercise.currentTargetIndex]);
+    renderer.highlightTargetNote(getCurrentTargetPayload());
   } else {
     scoreWrapper.classList.add('flash-error');
     setTimeout(() => scoreWrapper.classList.remove('flash-error'), 300);
@@ -77,11 +88,11 @@ function updateHUD() {
   scoreEl.textContent = `${exercise.getScore()}%`;
 }
 
-// Reset Score
-resetBtn.onclick = () => {
+// Réinitialisation explicite du score
+resetBtn.addEventListener('click', () => {
   exercise.resetStats();
   updateHUD();
-};
+});
 
 // Métronome
 metroToggleBtn.onclick = async () => {
@@ -96,7 +107,7 @@ metroBpmInput.addEventListener('change', () => {
   audio.setMetronomeBpm(bpm);
 });
 
-// Auto-regénération sur changement d'option
+// Écoute automatique des options
 ['clef-select', 'measures-count', 'time-signature', 'chords-mode'].forEach(id => {
   document.getElementById(id).addEventListener('change', () => startNewSession());
 });
@@ -105,7 +116,7 @@ window.addEventListener('resize', () => {
   if (exercise.targets.length > 0) {
     const params = getParams();
     renderer.render(exercise.generate(params), params.clef, params.timeSignature);
-    renderer.highlightTargetNote(exercise.targets[exercise.currentTargetIndex]);
+    renderer.highlightTargetNote(getCurrentTargetPayload());
   }
 });
 

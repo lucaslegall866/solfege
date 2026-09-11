@@ -2,7 +2,6 @@ export class ScoreRenderer {
   constructor(containerId) {
     this.container = document.getElementById(containerId);
     this.measurePositions = [];
-    this.currentRenderedNotes = []; // Toutes les StaveNotes affichées
   }
 
   getMeasureWidth(numMeasures) {
@@ -21,7 +20,6 @@ export class ScoreRenderer {
   render(measuresData, clefMode, timeSig) {
     this.container.innerHTML = '';
     this.measurePositions = [];
-    this.currentRenderedNotes = [];
 
     const { Renderer, Stave } = Vex.Flow;
     const widthPerMeasure = this.getMeasureWidth(measuresData.length);
@@ -33,6 +31,7 @@ export class ScoreRenderer {
     const context = renderer.getContext();
 
     let xOffset = 15;
+    let figureCounter = 0;
 
     measuresData.forEach((measure, idx) => {
       this.measurePositions.push(xOffset);
@@ -49,15 +48,15 @@ export class ScoreRenderer {
         staveTreble.setContext(context).draw();
         staveBass.setContext(context).draw();
 
-        this._drawVoice(context, staveTreble, measure.treble, 'treble', timeSig);
-        this._drawVoice(context, staveBass, measure.bass, 'bass', timeSig);
+        figureCounter = this._drawVoice(context, staveTreble, measure.treble, 'treble', timeSig, figureCounter);
+        figureCounter = this._drawVoice(context, staveBass, measure.bass, 'bass', timeSig, figureCounter);
       } else {
         const stave = new Stave(xOffset, 35, widthPerMeasure);
         if (idx === 0) {
           stave.addClef(clefMode).addTimeSignature(timeSig);
         }
         stave.setContext(context).draw();
-        this._drawVoice(context, stave, measure[clefMode], clefMode, timeSig);
+        figureCounter = this._drawVoice(context, stave, measure[clefMode], clefMode, timeSig, figureCounter);
       }
 
       xOffset += widthPerMeasure;
@@ -66,8 +65,8 @@ export class ScoreRenderer {
     this.container.scrollLeft = 0;
   }
 
-  _drawVoice(context, stave, notes, clef, timeSig) {
-    if (!notes || notes.length === 0) return;
+  _drawVoice(context, stave, notes, clef, timeSig, figureCounter) {
+    if (!notes || notes.length === 0) return figureCounter;
 
     const { StaveNote, Dot, Voice, Formatter, Beam } = Vex.Flow;
     const beats = parseInt(timeSig.split('/')[0]);
@@ -83,8 +82,11 @@ export class ScoreRenderer {
       });
 
       if (isDotted) Dot.buildAndAttach([sn], { all: true });
-      n.staveNoteRef = sn; // Référence conservée
-      this.currentRenderedNotes.push(sn);
+
+      // On associe un ID unique à l'objet logique pour faire le pont avec le SVG
+      n.figureId = `vf-fig-${figureCounter++}`;
+      n.staveNoteRef = sn;
+
       return sn;
     });
 
@@ -95,36 +97,54 @@ export class ScoreRenderer {
     new Formatter().joinVoices([voice]).formatToStave([voice], stave);
     voice.draw(context, stave);
     beams.forEach(b => b.setContext(context).draw());
+
+    // Injection de l'identifiant sur les éléments du DOM SVG générés par VexFlow
+    staveNotes.forEach((sn, i) => {
+      const elem = sn.getSVGElement ? sn.getSVGElement() : null;
+      if (elem) {
+        elem.setAttribute('data-figure-id', notes[i].figureId);
+      }
+    });
+
+    return figureCounter;
   }
 
-  // Coloration chirurgicale de la seule tête de note ciblée dans le SVG
+  // Coloration chirurgicale de la note active (noire, blanche, croche, ronde)
   highlightTargetNote(currentTarget) {
     if (!currentTarget) return;
 
-    // 1. Réinitialiser toutes les têtes de notes en noir
-    const allNoteHeads = this.container.querySelectorAll('.vf-notehead path');
-    allNoteHeads.forEach(head => {
-      head.style.fill = '#000000';
-      head.style.stroke = '#000000';
+    // 1. Réinitialise toutes les têtes de notes en noir
+    const allHeads = this.container.querySelectorAll('.vf-stavenote .vf-notehead');
+    allHeads.forEach(headGroup => {
+      headGroup.querySelectorAll('path, ellipse').forEach(shape => {
+        shape.style.fill = '#000000';
+        shape.style.stroke = '#000000';
+      });
     });
 
-    // 2. Cibler la StaveNote active
-    const sn = currentTarget.staveNoteRef;
-    if (sn) {
-      // VexFlow expose getSVGElement() ou stocke ses têtes dans sn.note_heads
-      const noteSvg = sn.getSVGElement ? sn.getSVGElement() : null;
-      if (noteSvg) {
-        const headsInChord = noteSvg.querySelectorAll('.vf-notehead path');
-        // VexFlow stocke les têtes de bas en haut (index 0 = note la plus basse)
-        if (headsInChord && headsInChord[currentTarget.headIndex]) {
-          const targetPath = headsInChord[currentTarget.headIndex];
-          targetPath.style.fill = '#0284c7';
-          targetPath.style.stroke = '#0284c7';
-        }
+    // 2. Recherche du groupe SVG de la figure concernée
+    const figId = currentTarget.figureId;
+    let targetGroup = this.container.querySelector(`[data-figure-id="${figId}"]`);
+
+    // Fallback de sécurité si l'attribut direct a sauté
+    if (!targetGroup && currentTarget.staveNoteRef) {
+      targetGroup = currentTarget.staveNoteRef.getSVGElement ? currentTarget.staveNoteRef.getSVGElement() : null;
+    }
+
+    if (targetGroup) {
+      // Les têtes de notes d'un accord sont ordonnées de bas en haut dans VexFlow
+      const headNodes = targetGroup.querySelectorAll('.vf-notehead');
+      const targetHead = headNodes[currentTarget.headIndex];
+
+      if (targetHead) {
+        targetHead.querySelectorAll('path, ellipse').forEach(shape => {
+          shape.style.fill = '#0284c7';
+          shape.style.stroke = '#0284c7';
+        });
       }
     }
 
-    // 3. Défilement automatique vers la mesure correspondante
+    // 3. Défilement fluide vers la mesure en cours
     const measureIdx = currentTarget.measureIndex;
     const targetX = this.measurePositions[measureIdx] || 0;
     this.container.scrollTo({
