@@ -2,6 +2,7 @@ export class ScoreRenderer {
   constructor(containerId) {
     this.container = document.getElementById(containerId);
     this.measurePositions = [];
+    this.currentRenderedNotes = []; // Toutes les StaveNotes affichées
   }
 
   getMeasureWidth(numMeasures) {
@@ -20,6 +21,7 @@ export class ScoreRenderer {
   render(measuresData, clefMode, timeSig) {
     this.container.innerHTML = '';
     this.measurePositions = [];
+    this.currentRenderedNotes = [];
 
     const { Renderer, Stave } = Vex.Flow;
     const widthPerMeasure = this.getMeasureWidth(measuresData.length);
@@ -47,15 +49,15 @@ export class ScoreRenderer {
         staveTreble.setContext(context).draw();
         staveBass.setContext(context).draw();
 
-        this._drawVoiceWithBeams(context, staveTreble, measure.treble, 'treble', timeSig);
-        this._drawVoiceWithBeams(context, staveBass, measure.bass, 'bass', timeSig);
+        this._drawVoice(context, staveTreble, measure.treble, 'treble', timeSig);
+        this._drawVoice(context, staveBass, measure.bass, 'bass', timeSig);
       } else {
         const stave = new Stave(xOffset, 35, widthPerMeasure);
         if (idx === 0) {
           stave.addClef(clefMode).addTimeSignature(timeSig);
         }
         stave.setContext(context).draw();
-        this._drawVoiceWithBeams(context, stave, measure[clefMode], clefMode, timeSig);
+        this._drawVoice(context, stave, measure[clefMode], clefMode, timeSig);
       }
 
       xOffset += widthPerMeasure;
@@ -64,7 +66,7 @@ export class ScoreRenderer {
     this.container.scrollLeft = 0;
   }
 
-  _drawVoiceWithBeams(context, stave, notes, clef, timeSig) {
+  _drawVoice(context, stave, notes, clef, timeSig) {
     if (!notes || notes.length === 0) return;
 
     const { StaveNote, Dot, Voice, Formatter, Beam } = Vex.Flow;
@@ -77,16 +79,16 @@ export class ScoreRenderer {
       const sn = new StaveNote({
         keys: n.keys,
         duration: cleanDuration,
-        clef: clef // Impératif pour placer correctement les têtes de notes
+        clef: clef
       });
 
       if (isDotted) Dot.buildAndAttach([sn], { all: true });
+      n.staveNoteRef = sn; // Référence conservée
+      this.currentRenderedNotes.push(sn);
       return sn;
     });
 
-    // Génération automatique des ligatures pour les croches
     const beams = Beam.generateBeams(staveNotes);
-
     const voice = new Voice({ num_beats: beats, beat_value: 4 }).setMode(Voice.Mode.SOFT);
     voice.addTickables(staveNotes);
 
@@ -95,21 +97,39 @@ export class ScoreRenderer {
     beams.forEach(b => b.setContext(context).draw());
   }
 
-  highlightElement(figureIndex, noteMeasureMap) {
-    const svgNotes = this.container.querySelectorAll('.vf-stavenote');
-    svgNotes.forEach((noteEl, i) => {
-      noteEl.querySelectorAll('path').forEach(p => {
-        p.style.fill = (i === figureIndex) ? '#0284c7' : '#000000';
-      });
+  // Coloration chirurgicale de la seule tête de note ciblée dans le SVG
+  highlightTargetNote(currentTarget) {
+    if (!currentTarget) return;
+
+    // 1. Réinitialiser toutes les têtes de notes en noir
+    const allNoteHeads = this.container.querySelectorAll('.vf-notehead path');
+    allNoteHeads.forEach(head => {
+      head.style.fill = '#000000';
+      head.style.stroke = '#000000';
     });
 
-    if (noteMeasureMap && noteMeasureMap[figureIndex] !== undefined) {
-      const measureIdx = noteMeasureMap[figureIndex];
-      const targetX = this.measurePositions[measureIdx] || 0;
-      this.container.scrollTo({
-        left: Math.max(0, targetX - 20),
-        behavior: 'smooth'
-      });
+    // 2. Cibler la StaveNote active
+    const sn = currentTarget.staveNoteRef;
+    if (sn) {
+      // VexFlow expose getSVGElement() ou stocke ses têtes dans sn.note_heads
+      const noteSvg = sn.getSVGElement ? sn.getSVGElement() : null;
+      if (noteSvg) {
+        const headsInChord = noteSvg.querySelectorAll('.vf-notehead path');
+        // VexFlow stocke les têtes de bas en haut (index 0 = note la plus basse)
+        if (headsInChord && headsInChord[currentTarget.headIndex]) {
+          const targetPath = headsInChord[currentTarget.headIndex];
+          targetPath.style.fill = '#0284c7';
+          targetPath.style.stroke = '#0284c7';
+        }
+      }
     }
+
+    // 3. Défilement automatique vers la mesure correspondante
+    const measureIdx = currentTarget.measureIndex;
+    const targetX = this.measurePositions[measureIdx] || 0;
+    this.container.scrollTo({
+      left: Math.max(0, targetX - 20),
+      behavior: 'smooth'
+    });
   }
 }

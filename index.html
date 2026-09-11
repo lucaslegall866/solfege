@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Solfège Lab</title>
   <link rel="stylesheet" href="style.css">
-  <!-- Bibliothèques externes -->
   <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.4/build/cjs/vexflow.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 </head>
@@ -14,7 +13,6 @@
   <header>
     <div class="logo">Solfège Lab</div>
     
-    <!-- Contrôles rapides dans le Header : Métronome + Choix d'exercice -->
     <div class="header-controls">
       <div class="metronome-widget">
         <button id="metro-toggle-btn" class="metro-btn">▶</button>
@@ -31,7 +29,6 @@
   </header>
 
   <main class="container">
-    <!-- Barre de paramètres compacte (sans le tempo) -->
     <section class="card settings-card">
       <div class="form-row">
         <div class="form-group">
@@ -71,21 +68,19 @@
       </div>
     </section>
 
-    <!-- Affichage score & progression -->
+    <!-- HUD sans texte superflu -->
     <div class="hud">
-      <div class="hud-item">Note attendue : <span id="target-note-subtext" style="color:var(--accent); font-weight:bold;">1/1</span></div>
+      <div class="hud-item">Note : <span id="progress-indicator">0 / 0</span></div>
       <div class="hud-item">
         Précision : <span id="score-indicator">100%</span>
         <button id="reset-score-btn" class="icon-btn" title="Réinitialiser le score">↺ Reset</button>
       </div>
     </div>
 
-    <!-- Zone partition VexFlow -->
     <div id="score-wrapper">
       <div id="score-container"></div>
     </div>
 
-    <!-- Clavier de saisie -->
     <section class="keyboard-container">
       <div class="keyboard" id="keyboard"></div>
     </section>

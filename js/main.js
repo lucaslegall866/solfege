@@ -7,7 +7,7 @@ const renderer = new ScoreRenderer('score-container');
 const exercise = new NoteReadingExercise();
 
 // DOM
-const targetSubtextEl = document.getElementById('target-note-subtext');
+const progressEl = document.getElementById('progress-indicator');
 const scoreEl = document.getElementById('score-indicator');
 const keyboardEl = document.getElementById('keyboard');
 const scoreWrapper = document.getElementById('score-wrapper');
@@ -47,7 +47,7 @@ function startNewSession() {
   const measuresData = exercise.generate(params);
 
   renderer.render(measuresData, params.clef, params.timeSignature);
-  renderer.highlightElement(exercise.currentFigureIdx, exercise.noteMeasureMap);
+  renderer.highlightTargetNote(exercise.targets[exercise.currentTargetIndex]);
   updateHUD();
 }
 
@@ -55,7 +55,6 @@ async function submitAnswer(noteName) {
   const result = exercise.validate(noteName);
 
   if (result.success) {
-    // Joue le son de la note validée
     audio.playNote(result.key);
 
     if (exercise.isFinished()) {
@@ -64,9 +63,7 @@ async function submitAnswer(noteName) {
       return;
     }
 
-    if (result.completedFigure) {
-      renderer.highlightElement(exercise.currentFigureIdx, exercise.noteMeasureMap);
-    }
+    renderer.highlightTargetNote(exercise.targets[exercise.currentTargetIndex]);
   } else {
     scoreWrapper.classList.add('flash-error');
     setTimeout(() => scoreWrapper.classList.remove('flash-error'), 300);
@@ -76,12 +73,7 @@ async function submitAnswer(noteName) {
 }
 
 function updateHUD() {
-  const currentFig = exercise.figures[exercise.currentFigureIdx];
-  if (currentFig) {
-    const total = currentFig.noteNames.length;
-    const current = exercise.currentChordNoteIdx + 1;
-    targetSubtextEl.textContent = total > 1 ? `Accord : note ${current}/${total} (du bas)` : `Note seule`;
-  }
+  progressEl.textContent = `${exercise.currentTargetIndex} / ${exercise.targets.length}`;
   scoreEl.textContent = `${exercise.getScore()}%`;
 }
 
@@ -91,7 +83,7 @@ resetBtn.onclick = () => {
   updateHUD();
 };
 
-// Gestion Métronome Indépendant
+// Métronome
 metroToggleBtn.onclick = async () => {
   const bpm = parseInt(metroBpmInput.value) || 90;
   const isRunning = await audio.toggleMetronome(bpm);
@@ -104,18 +96,17 @@ metroBpmInput.addEventListener('change', () => {
   audio.setMetronomeBpm(bpm);
 });
 
-// Écoute automatique des paramètres de génération (sans le métronome)
+// Auto-regénération sur changement d'option
 ['clef-select', 'measures-count', 'time-signature', 'chords-mode'].forEach(id => {
   document.getElementById(id).addEventListener('change', () => startNewSession());
 });
 
 window.addEventListener('resize', () => {
-  if (exercise.figures.length > 0) {
+  if (exercise.targets.length > 0) {
     const params = getParams();
     renderer.render(exercise.generate(params), params.clef, params.timeSignature);
-    renderer.highlightElement(exercise.currentFigureIdx, exercise.noteMeasureMap);
+    renderer.highlightTargetNote(exercise.targets[exercise.currentTargetIndex]);
   }
 });
 
-// Lancement au chargement
 window.onload = startNewSession;

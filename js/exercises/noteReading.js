@@ -3,7 +3,6 @@ import { BaseExercise } from './baseExercise.js';
 export const NOTE_NAMES_FR = ['Do', 'Ré', 'Mi', 'Fa', 'Sol', 'La', 'Si'];
 export const NOTE_NAMES_EN = ['c', 'd', 'e', 'f', 'g', 'a', 'b'];
 
-// Ambitus réaliste
 const PITCH_POOLS = {
   treble: [
     'g/3', 'a/3', 'b/3',
@@ -17,42 +16,85 @@ const PITCH_POOLS = {
   ]
 };
 
-// Calcule la valeur absolue d'une note pour garantir un tri strict de bas en haut
-function getAbsolutePitchValue(keyStr) {
-  const [pitch, octave] = keyStr.split('/');
-  const baseOrder = { c: 0, d: 1, e: 2, f: 3, g: 4, a: 5, b: 6 };
-  return parseInt(octave) * 7 + baseOrder[pitch];
+function getPitchValue(keyStr) {
+  const [p, oct] = keyStr.split('/');
+  const order = { c: 0, d: 1, e: 2, f: 3, g: 4, a: 5, b: 6 };
+  return parseInt(oct) * 7 + order[p];
 }
 
 export class NoteReadingExercise extends BaseExercise {
   constructor() {
     super();
-    this.figures = [];       // Les figures musicales (accords ou notes uniques)
-    this.currentFigureIdx = 0; 
-    this.currentChordNoteIdx = 0; // Index de la note en cours DANS l'accord actif
-    this.noteMeasureMap = [];
+    this.targets = []; // Liste ordonnée chronologiquement de chaque note cible individuelle
+    this.currentTargetIndex = 0;
   }
 
   generate({ clef, measures, timeSignature, chordsMode }) {
-    this.figures = [];
-    this.currentFigureIdx = 0;
-    this.currentChordNoteIdx = 0;
-    this.noteMeasureMap = [];
+    this.targets = [];
+    this.currentTargetIndex = 0;
 
     const beatsPerMeasure = parseInt(timeSignature.split('/')[0]);
     const measuresData = [];
 
     for (let m = 0; m < measures; m++) {
       const measureGroup = { treble: [], bass: [] };
-      const rhythmPattern = this._getRandomRhythmPattern(beatsPerMeasure);
+      const timeEvents = []; // Collecte des événements avec leur timestamp dans la mesure
 
-      rhythmPattern.forEach(durObj => {
-        const activeClef = (clef === 'both') ? (Math.random() > 0.5 ? 'treble' : 'bass') : clef;
-        const elem = this._buildFigure(activeClef, durObj, chordsMode);
+      if (clef === 'both') {
+        // Génération de motifs complets indépendants pour chaque portée
+        const treblePattern = this._getFullMeasurePattern(beatsPerMeasure);
+        const bassPattern = this._getFullMeasurePattern(beatsPerMeasure);
 
-        measureGroup[activeClef].push(elem);
-        this.figures.push(elem.logicalData);
-        this.noteMeasureMap.push(m);
+        let tOffset = 0;
+        treblePattern.forEach(durObj => {
+          const elem = this._buildFigure('treble', durObj, chordsMode, m);
+          measureGroup.treble.push(elem);
+          timeEvents.push({ time: tOffset, clef: 'treble', elem });
+          tOffset += durObj.val;
+        });
+
+        tOffset = 0;
+        bassPattern.forEach(durObj => {
+          const elem = this._buildFigure('bass', durObj, chordsMode, m);
+          measureGroup.bass.push(elem);
+          timeEvents.push({ time: tOffset, clef: 'bass', elem });
+          tOffset += durObj.val;
+        });
+      } else {
+        const pattern = this._getFullMeasurePattern(beatsPerMeasure);
+        let tOffset = 0;
+        pattern.forEach(durObj => {
+          const elem = this._buildFigure(clef, durObj, chordsMode, m);
+          measureGroup[clef].push(elem);
+          timeEvents.push({ time: tOffset, clef: clef, elem });
+          tOffset += durObj.val;
+        });
+      }
+
+      // TRI TEMPOREL STRICT :
+      // 1. D'abord par le temps dans la mesure (temps 0, puis temps 1, etc.)
+      // 2. À temps égal : priorité à la clé de Fa avant la clé de Sol
+      timeEvents.sort((a, b) => {
+        if (Math.abs(a.time - b.time) > 0.001) {
+          return a.time - b.time;
+        }
+        if (a.clef === b.clef) return 0;
+        return a.clef === 'bass' ? -1 : 1;
+      });
+
+      // Aplatissement en cibles individuelles (du bas vers le haut au sein de chaque accord)
+      timeEvents.forEach(evt => {
+        const { elem } = evt;
+        elem.keys.forEach((key, headIdx) => {
+          this.targets.push({
+            measureIndex: m,
+            clef: elem.clef,
+            key: key,
+            expectedNote: elem.noteNames[headIdx],
+            staveNoteRef: elem.staveNoteRef,
+            headIndex: headIdx
+          });
+        });
       });
 
       measuresData.push(measureGroup);
@@ -61,36 +103,37 @@ export class NoteReadingExercise extends BaseExercise {
     return measuresData;
   }
 
-  _getRandomRhythmPattern(beats) {
+  // Motifs rythmiques garantissant une mesure 100% pleine sans silences
+  _getFullMeasurePattern(beats) {
     if (beats === 4) {
       const patterns = [
         [{ dur: 'w', val: 4 }],
         [{ dur: 'h', val: 2 }, { dur: 'h', val: 2 }],
         [{ dur: 'hd', val: 3 }, { dur: 'q', val: 1 }],
+        [{ dur: 'q', val: 1 }, { dur: 'h', val: 2 }, { dur: 'q', val: 1 }],
         [{ dur: 'q', val: 1 }, { dur: 'q', val: 1 }, { dur: 'q', val: 1 }, { dur: 'q', val: 1 }],
-        // Avec ligatures de croches
         [{ dur: '8', val: 0.5 }, { dur: '8', val: 0.5 }, { dur: 'q', val: 1 }, { dur: 'h', val: 2 }]
       ];
       return patterns[Math.floor(Math.random() * patterns.length)];
-    } else {
+    } else { // 3/4
       const patterns = [
         [{ dur: 'hd', val: 3 }],
         [{ dur: 'h', val: 2 }, { dur: 'q', val: 1 }],
         [{ dur: 'q', val: 1 }, { dur: 'q', val: 1 }, { dur: 'q', val: 1 }],
-        [{ dur: 'q', val: 1 }, { dur: '8', val: 0.5 }, { dur: '8', val: 0.5 }]
+        [{ dur: '8', val: 0.5 }, { dur: '8', val: 0.5 }, { dur: 'h', val: 2 }]
       ];
       return patterns[Math.floor(Math.random() * patterns.length)];
     }
   }
 
-  _buildFigure(clef, durObj, chordsMode) {
+  _buildFigure(clef, durObj, chordsMode, measureIdx) {
     const pool = PITCH_POOLS[clef];
-    let isChord = (chordsMode === 'chords') || (chordsMode === 'mixed' && Math.random() > 0.55);
+    let isChord = (chordsMode === 'chords') || (chordsMode === 'mixed' && Math.random() > 0.6);
 
     let rawKeys = [];
     if (isChord) {
       const chordSize = Math.floor(Math.random() * 3) + 2; // 2, 3 ou 4 sons
-      const startIdx = Math.floor(Math.random() * (pool.length - 8));
+      const startIdx = Math.floor(Math.random() * (pool.length - 7));
       rawKeys.push(pool[startIdx]);
 
       let offset = startIdx;
@@ -102,47 +145,38 @@ export class NoteReadingExercise extends BaseExercise {
       rawKeys.push(pool[Math.floor(Math.random() * pool.length)]);
     }
 
-    // TRI OBLIGATOIRE DU BAS VERS LE HAUT
-    rawKeys.sort((a, b) => getAbsolutePitchValue(a) - getAbsolutePitchValue(b));
+    // Tri ascendant strict des hauteurs
+    rawKeys.sort((a, b) => getPitchValue(a) - getPitchValue(b));
 
     const noteNames = rawKeys.map(k => {
-      const pitchLetter = k.split('/')[0];
-      return NOTE_NAMES_FR[NOTE_NAMES_EN.indexOf(pitchLetter)];
+      const letter = k.split('/')[0];
+      return NOTE_NAMES_FR[NOTE_NAMES_EN.indexOf(letter)];
     });
 
-    return {
+    const elemRef = {
       keys: rawKeys,
       duration: durObj.dur,
       clef: clef,
-      logicalData: { keys: rawKeys, noteNames, clef }
+      noteNames: noteNames,
+      measureIndex: measureIdx,
+      staveNoteRef: null // Rempli lors du rendu VexFlow
     };
+
+    return elemRef;
   }
 
   validate(noteName) {
     this.attempts++;
-    const currentFig = this.figures[this.currentFigureIdx];
-    if (!currentFig) return { success: false, completedFigure: false };
+    const currentTarget = this.targets[this.currentTargetIndex];
+    if (!currentTarget) return { success: false };
 
-    const expectedNoteName = currentFig.noteNames[this.currentChordNoteIdx];
-    const currentKey = currentFig.keys[this.currentChordNoteIdx];
-
-    if (noteName === expectedNoteName) {
-      this.currentChordNoteIdx++;
-      let figureFinished = false;
-
-      // Si toutes les notes de l'accord ont été validées dans l'ordre
-      if (this.currentChordNoteIdx >= currentFig.noteNames.length) {
-        this.currentFigureIdx++;
-        this.currentChordNoteIdx = 0;
-        figureFinished = true;
-      }
-
+    if (noteName === currentTarget.expectedNote) {
+      const playedKey = currentTarget.key;
+      this.currentTargetIndex++;
       return { 
         success: true, 
-        key: currentKey, 
-        completedFigure: figureFinished,
-        totalNotesInChord: currentFig.noteNames.length,
-        currentSubIndex: this.currentChordNoteIdx
+        key: playedKey,
+        isLast: this.currentTargetIndex >= this.targets.length
       };
     } else {
       this.mistakes++;
@@ -151,6 +185,6 @@ export class NoteReadingExercise extends BaseExercise {
   }
 
   isFinished() {
-    return this.currentFigureIdx >= this.figures.length;
+    return this.currentTargetIndex >= this.targets.length;
   }
 }
